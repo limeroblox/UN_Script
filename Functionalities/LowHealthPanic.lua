@@ -1,3 +1,5 @@
+-- Converted with ttyyuu12345's model to script plugin v4
+
 local function sandbox(var, func)
 	local env = getfenv(func)
 	local newenv = setmetatable({}, {
@@ -20,9 +22,11 @@ local Part0 = Instance.new("Part")
 Part0.Name = "SmokePanicLow"
 Part0.Parent = mas
 Part0.Size = Vector3.new(25, 25, 25)
-Part0.Transparency = 0.9
+Part0.Transparency = 1
 Part0.Anchored = true
 Part0.CanCollide = false
+part0.CanTouch = false
+part0.CanQuery = false
 Part0.TopSurface = Enum.SurfaceType.Smooth
 Part0.BottomSurface = Enum.SurfaceType.Smooth
 
@@ -65,6 +69,7 @@ ParticleEmitter2.RotSpeed = NumberRange.new(-30, 30)
 ParticleEmitter2.SpreadAngle = Vector2.new(10, 10)
 ParticleEmitter2.VelocityInheritance = 1
 ParticleEmitter2.VelocitySpread = 10
+ParrticleEmitter2.Squash = NumberSequence.new(3, -1.13, -3)
 
 -- Sound
 local Sound3 = Instance.new("Sound")
