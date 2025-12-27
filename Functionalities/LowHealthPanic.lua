@@ -71,7 +71,6 @@ ParticleEmitter2.RotSpeed = NumberRange.new(-30, 30)
 ParticleEmitter2.SpreadAngle = Vector2.new(10, 10)
 ParticleEmitter2.VelocityInheritance = 1
 ParticleEmitter2.VelocitySpread = 10
-ParticleEmitter2.Squash = NumberSequence.new(3, -1.13, -3)
 
 -- Sound
 local Sound3 = Instance.new("Sound")
