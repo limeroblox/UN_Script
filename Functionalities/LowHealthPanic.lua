@@ -25,8 +25,6 @@ Part0.Size = Vector3.new(25, 25, 25)
 Part0.Transparency = 1
 Part0.Anchored = true
 Part0.CanCollide = false
-Part0.CanQuery = false
-Part0.CanTouch = false
 Part0.TopSurface = Enum.SurfaceType.Smooth
 Part0.BottomSurface = Enum.SurfaceType.Smooth
 -- Particle (black smoke)
