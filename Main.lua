@@ -12,25 +12,62 @@ local PanicSmokeSrc = loadstring(game:HttpGet("https://raw.githubusercontent.com
 local Explodeondeath = nil
 local PanicSmoke = nil
 
--- Helper to get executor workspace
-local function GetExecutorWorkspace()
-    -- Try different executor methods first
-    if shared and shared.Workspace then
-        return shared.Workspace
-    elseif getexecutor and type(getexecutor) == "function" then
-        local success, executor = pcall(getexecutor)
-        if success and executor and executor.Workspace then
-            return executor.Workspace
-        end
-    elseif _G and _G.ExecutorWorkspace then
-        return _G.ExecutorWorkspace
+-- Try to get executor workspace using exploit-specific methods
+local ExecWS = nil
+
+-- Method 1: Check if exploit provides direct access
+if getexecutorname and type(getexecutorname) == "function" then
+    -- For exploits that expose executor workspace in global environment
+    if syn and syn.get_thread_identity then
+        local old_identity = syn.get_thread_identity()
+        syn.set_thread_identity(7) -- Set to script identity for access
+        ExecWS = workspace
+        syn.set_thread_identity(old_identity)
+    elseif get_hidden_gui then
+        -- Some exploits like Script-Ware
+        ExecWS = get_hidden_gui():FindFirstAncestorWhichIsA("Workspace")
     end
-    
-    -- Fallback to the game's workspace
-    return game:GetService("Workspace")
 end
 
-local ExecWS = GetExecutorWorkspace()
+-- Method 2: Check common exploit global variables
+if not ExecWS then
+    if _G.__EXECUTOR and _G.__EXECUTOR.Workspace then
+        ExecWS = _G.__EXECUTOR.Workspace
+    elseif shared and shared.workspace then
+        ExecWS = shared.workspace
+    elseif _G.Workspace then
+        ExecWS = _G.Workspace
+    end
+end
+
+-- Method 3: Try to find it through CoreGui or other containers
+if not ExecWS then
+    local success, result = pcall(function()
+        return game:GetService("CoreGui"):FindFirstChild("ExecutorWorkspace") or 
+               game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ExecutorWorkspace")
+    end)
+    if success and result then
+        ExecWS = result
+    end
+end
+
+-- Method 4: Last resort - check all possible parent objects
+if not ExecWS then
+    warn("Executor workspace not found, checking all possible locations...")
+    
+    -- Check if there's a special workspace created by the executor
+    for _, obj in pairs(game:GetDescendants()) do
+        if obj.Name == "ExecutorWorkspace" or obj.Name == "ScriptWorkspace" then
+            ExecWS = obj
+            break
+        end
+    end
+end
+
+-- Fallback to game workspace if executor workspace not found
+ExecWS = ExecWS or workspace
+
+print("Using workspace:", ExecWS:GetFullName())
 
 -- Function to get all sounds in a folder
 local function GetSounds(folder)
@@ -54,7 +91,7 @@ local function LoadSounds()
     -- Find GeneralSFX folder
     local generalSFX = ExecWS:FindFirstChild("GeneralSFX")
     if not generalSFX then
-        warn("GeneralSFX folder not found in workspace")
+        warn("GeneralSFX folder not found in", ExecWS:GetFullName())
         return
     end
     
@@ -86,6 +123,8 @@ local function LoadSounds()
     else
         warn("Death folder not found in GeneralSFX")
     end
+    
+    print("Loaded", #HurtSound, "hurt sounds and", #DeathSound, "death sounds")
 end
 
 -- Call LoadSounds
@@ -94,7 +133,7 @@ LoadSounds()
 -- Play a random sound from a table
 local function PlayExecSound(soundList)
     if not soundList or #soundList == 0 then 
-        return -- Silently return if no sounds
+        return
     end
     
     local pick = soundList[math.random(1, #soundList)]
@@ -158,8 +197,15 @@ local function SetupPanicSmoke()
         local success, func = pcall(PanicSmokeSrc)
         if success and type(func) == "function" then
             PanicSmoke = func
-            -- You might want to call this when health is low
-            -- For example: if Humanoid.Health < 30 then PanicSmoke() end
+            -- You can call this when needed
+            Humanoid.HealthChanged:Connect(function(health)
+                if health < 30 and health > 0 then
+                    local success, err = pcall(PanicSmoke)
+                    if not success then
+                        warn("PanicSmoke error:", err)
+                    end
+                end
+            end)
         end
     end
 end
@@ -168,15 +214,14 @@ end
 Humanoid.HealthChanged:Connect(OnHealthChanged)
 Humanoid.Died:Connect(OnDied)
 
--- Setup PanicSmoke (optional, call when needed)
+-- Setup PanicSmoke
 SetupPanicSmoke()
 
 -- Handle character respawns
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     -- Wait for character to load
     repeat
-        newChar = LocalPlayer.Character
-        task.wait()
+        task.wait(0.1)
     until newChar and newChar:FindFirstChild("Humanoid") and newChar:FindFirstChild("Head")
     
     Character = newChar
@@ -195,6 +240,15 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     LoadSounds()
 end)
 
--- Debug: Print loaded sound counts
-print("Loaded Hurt Sounds:", #HurtSound)
-print("Loaded Death Sounds:", #DeathSound)
+-- Debug menu (optional - remove if not needed)
+local function CreateDebugMenu()
+    if ExecWS ~= workspace then
+        print("=== DEBUG INFO ===")
+        print("Executor Workspace:", ExecWS:GetFullName())
+        print("Hurt Sounds Loaded:", #HurtSound)
+        print("Death Sounds Loaded:", #DeathSound)
+        print("==================")
+    end
+end
+
+CreateDebugMenu()
