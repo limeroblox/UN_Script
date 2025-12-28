@@ -4,29 +4,84 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local Head = Character:WaitForChild("Head")
 
--- ================ YOUR HURT SOUNDS PATHS ================
-local HurtSounds = {
-    "rbxassetid://GeneralSFX/Hurt/Hurt_1.mp3",
-    "rbxassetid://GeneralSFX/Hurt/Hurt_2.mp3",
-    "rbxassetid://GeneralSFX/Hurt/Hurt_3.mp3",
-    -- Add more if you want: "rbxassetid://GeneralSFX/Hurt/custom_grunt.mp3",
+-- Your file paths (change ONLY if your folder/files are named differently)
+local HurtFilePaths = {
+    "Hurt_1.mp3",
+    "Hurt_2.mp3",
+    "Hurt_3.mp3",
 }
 
--- Optional: Volume control (most executors allow up to 10)
-local HURT_VOLUME = 6
+-- Possible base folders (most common ones)
+local BaseFolders = {
+    "GeneralSFX/Hurt/",
+    "GeneralSFX/Hurt/",     -- duplicate for case
+    "sounds/Hurt/",
+    "SFX/Hurt/",
+    "GeneralSFX/",          -- if files are directly in GeneralSFX
+    "",                     -- if files are in root sounds folder
+}
 
--- ================ PLAY FUNCTION ================
-local function PlayHurtSound()
-    if #HurtSounds == 0 then
-        warn("No hurt sounds defined!")
-        return
+-- All prefix variants that executors support
+local Prefixes = {
+    "rbxassetid://",   -- Your original
+    "rbxasset://",     -- Most common working one
+    "",                -- No prefix (very common now)
+}
+
+local WorkingSounds = {}  -- Will store working SoundIds
+
+-- Test all combinations to find working ones
+local function DiscoverWorkingSounds()
+    for _, base in ipairs(BaseFolders) do
+        for _, file in ipairs(HurtFilePaths) do
+            local fullPath = base .. file
+            for _, prefix in ipairs(Prefixes) do
+                local testId = prefix .. fullPath
+
+                local testSound = Instance.new("Sound")
+                testSound.SoundId = testId
+                testSound.Volume = 0  -- Silent test
+                testSound.Parent = workspace
+
+                local success, err = pcall(function()
+                    testSound:Play()
+                end)
+
+                testSound:Destroy()
+
+                if success or (err and not string.find(err, "load sound")) then
+                    table.insert(WorkingSounds, testId)
+                    print("✅ WORKING SOUND FOUND:", testId)
+                    break  -- Found one for this file, move to next
+                else
+                    print("❌ Failed:", testId, "| Error:", err or "Unknown")
+                end
+            end
+        end
     end
 
-    local chosen = HurtSounds[math.random(1, #HurtSounds)]
+    if #WorkingSounds == 0 then
+        warn("NO WORKING HURT SOUNDS FOUND! Check folder placement and executor.")
+        print("Put your Hurt_1.mp3, Hurt_2.mp3, Hurt_3.mp3 in one of these locations:")
+        print(" - GeneralSFX/Hurt/")
+        print(" - sounds/Hurt/")
+        print(" - Or root sounds folder")
+    else
+        print("Found", #WorkingSounds, "working hurt sound(s)!")
+    end
+end
+
+DiscoverWorkingSounds()
+
+-- Play random working sound
+local function PlayHurtSound()
+    if #WorkingSounds == 0 then return end
+
+    local chosen = WorkingSounds[math.random(1, #WorkingSounds)]
 
     local sound = Instance.new("Sound")
     sound.SoundId = chosen
-    sound.Volume = HURT_VOLUME
+    sound.Volume = 6
     sound.Parent = Head
 
     sound.Ended:Connect(function()
@@ -36,35 +91,26 @@ local function PlayHurtSound()
     sound:Play()
 end
 
--- ================ HEALTH TRACKING ================
+-- Play on ANY damage
 local lastHealth = Humanoid.Health
 
 local function OnHealthChanged(newHealth)
     local damage = lastHealth - newHealth
-
-    -- Play sound on ANY positive damage (even 1 HP)
     if damage > 0 then
         PlayHurtSound()
     end
-
     lastHealth = newHealth
 end
 
--- ================ CONNECTIONS ================
 Humanoid.HealthChanged:Connect(OnHealthChanged)
 
--- Respawn support (reconnects everything cleanly)
+-- Respawn support
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     Character = newChar
     Humanoid = newChar:WaitForChild("Humanoid")
     Head = newChar:WaitForChild("Head")
-
     lastHealth = Humanoid.Health
-
     Humanoid.HealthChanged:Connect(OnHealthChanged)
 end)
 
-print("Hurt Sounds Active!")
-print("Plays on ANY damage taken")
-print("Using GeneralSFX/Hurt/Hurt_1-3.mp3")
-print("Loaded", #HurtSounds, "sound(s)")
+print("Hurt Sound Script Injected – Testing Paths...")
