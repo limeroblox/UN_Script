@@ -11,8 +11,8 @@ local PanicSrc = loadstring(game:HttpGet("https://raw.githubusercontent.com/lime
 -- ================ CONFIG ================
 local HURT_FOLDER = "GeneralSFX/Hurt"
 local DEATH_FOLDER = "GeneralSFX/Death"
-local HURT_VOLUME = 7
-local DEATH_VOLUME = 8
+local HURT_VOLUME = 1
+local DEATH_VOLUME = 1
 local TEMP_PREFIX = "TempSound_"
 
 -- Asset maker detection
