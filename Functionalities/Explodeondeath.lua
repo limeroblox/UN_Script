@@ -61,6 +61,7 @@ Distort.Level = 0.5
 Distort.Parent = Explosion
 
 -- LOGIC
+-- SEQUENCE
 task.spawn(function()
 	Initial:Emit(10)
 	Lights.Enabled = true
@@ -74,12 +75,13 @@ task.spawn(function()
 
 	task.wait(5)
 
-	Beep:Stop()
+	-- STOP PARTICLES FIRST
 	Lights.Enabled = false
+	Initial.Enabled = false
+
+	-- explosion
+	Beep:Stop()
 	Explosion:Play()
-
-	task.wait(3)
-
-	-- full cleanup
-	Holder:Destroy()
 end)
+
+Holder:Destroy()
