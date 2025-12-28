@@ -5,8 +5,8 @@ local Humanoid = Character:WaitForChild("Humanoid")
 local Head = Character:WaitForChild("Head")
 
 -- Load functionalities
-local Explodeondeath = loadstring(game:HttpGet("https://raw.githubusercontent.com/limeroblox/UN_Script/refs/heads/main/Functionalities/Explodeondeath.lua"))()
-local PanicSmoke = loadstring(game:HttpGet("https://raw.githubusercontent.com/limeroblox/UN_Script/refs/heads/main/Functionalities/LowHealthPanic.lua"))()
+local Explodeondeath = loadstring(game:HttpGet("https://raw.githubusercontent.com/limeroblox/UN_Script/refs/heads/main/Functionalities/Explodeondeath.lua"))
+local PanicSmoke = loadstring(game:HttpGet("https://raw.githubusercontent.com/limeroblox/UN_Script/refs/heads/main/Functionalities/LowHealthPanic.lua"))
 
 -- Helper to get executor workspace - FIXED
 local function GetExecutorWorkspace()
