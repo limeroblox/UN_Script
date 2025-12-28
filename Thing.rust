@@ -1,76 +1,76 @@
--- Executor Workspace Explorer Script
--- Run this as a LocalScript to print the full structure of your executor's workspace
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local Head = Character:WaitForChild("Head")
 
-local function ExploreInstance(instance, depth)
-    depth = depth or 0
-    local indent = string.rep("  ", depth)
-    
-    if not instance then
-        print(indent .. "[NIL]")
+-- ================ YOUR HURT SOUNDS PATHS ================
+-- Add or remove as needed. These are your exact file names.
+local HurtSounds = {
+    "rbxassetid://GeneralSFX/Hurt/Hurt_1.mp3",
+    "rbxassetid://GeneralSFX/Hurt/Hurt_2.mp3",
+    "rbxassetid://GeneralSFX/Hurt/Hurt_3.mp3",
+    -- Add more if you have Hurt_4.mp3, custom_pain.mp3, etc.
+}
+
+-- Optional: Volume (most executors allow up to 10)
+local HURT_VOLUME = 6
+
+-- ================ PLAY FUNCTION ================
+local function PlayHurtSound()
+    if #HurtSounds == 0 then
+        warn("No hurt sounds defined!")
         return
     end
-    
-    print(indent .. instance.ClassName .. ": " .. instance.Name)
-    
-    -- If it's a Folder or Model, list children
-    if instance:IsA("Folder") or instance:IsA("Model") or instance:IsA("Workspace") then
-        for _, child in ipairs(instance:GetChildren()) do
-            pcall(function()  -- pcall in case something errors
-                ExploreInstance(child, depth + 1)
-            end)
+
+    local chosen = HurtSounds[math.random(1, #HurtSounds)]
+
+    local sound = Instance.new("Sound")
+    sound.SoundId = chosen
+    sound.Volume = HURT_VOLUME
+    sound.Parent = Head
+
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+
+    sound:Play()
+end
+
+-- ================ HEALTH TRACKING ================
+local lastHealth = Humanoid.Health
+local hurtCooldown = 0.9  -- seconds between hurt sounds (adjust if needed)
+local lastHurtTime = 0
+
+local function OnHealthChanged(newHealth)
+    local damage = lastHealth - newHealth
+    lastHealth = newHealth
+
+    -- Only play on medium damage (5–20) to avoid spam on tiny hits or death
+    if damage >= 5 and damage <= 20 then
+        local now = tick()
+        if now - lastHurtTime >= hurtCooldown then
+            lastHurtTime = now
+            PlayHurtSound()
         end
     end
-    
-    -- Special highlight for Sounds
-    if instance:IsA("Sound") then
-        local soundId = instance.SoundId or "none"
-        local volume = instance.Volume
-        print(indent .. "   🔊 SoundId: " .. soundId .. " | Volume: " .. volume)
-    end
 end
 
-local function FindExecutorWorkspace()
-    print("=== Searching for Executor Workspace ===")
-    
-    -- Common locations used by executors
-    local candidates = {
-        shared.Workspace,
-        shared.workspace,
-        getrenv().workspace,
-        getgc and shared.Workspace,  -- fallback
-        _G.ExecutorWorkspace,
-        _G.workspace,
-    }
-    
-    -- Also check common executor globals
-    if syn then print("Detected: Synapse") end
-    if fluxus then print("Detected: Fluxus") end
-    if Krnl then print("Detected: Krnl") end
-    if identifyexecutor then 
-        local name, version = identifyexecutor()
-        print("Detected Executor:", name, version)
-    end
-    
-    for i, ws in ipairs(candidates) do
-        if ws and typeof(ws) == "Instance" then
-            print("Found candidate workspace #" .. i .. ": " .. ws.Name .. " (" .. ws.ClassName .. ")")
-            return ws
-        end
-    end
-    
-    warn("No executor workspace found!")
-    return nil
-end
+-- ================ CONNECTIONS ================
+Humanoid.HealthChanged:Connect(OnHealthChanged)
 
--- Main execution
-local ExecWS = FindExecutorWorkspace()
+-- Respawn support
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    Humanoid = newChar:WaitForChild("Humanoid")
+    Head = newChar:WaitForChild("Head")
 
-if ExecWS then
-    print("\n=== FULL CONTENTS OF EXECUTOR WORKSPACE ===")
-    print("Root: " .. ExecWS.Name .. " (" .. ExecWS.ClassName .. ")\n")
-    ExploreInstance(ExecWS)
-else
-    print("Could not locate any executor workspace.")
-end
+    lastHealth = Humanoid.Health
+    lastHurtTime = 0
 
-print("\n=== Exploration Complete ===")
+    Humanoid.HealthChanged:Connect(OnHealthChanged)
+end)
+
+print("Hurt Sounds Loaded!")
+print("Playing from: GeneralSFX/Hurt/")
+print("Loaded", #HurtSounds, "hurt sound(s)")
