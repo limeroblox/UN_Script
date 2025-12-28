@@ -82,6 +82,5 @@ task.spawn(function()
 	-- explosion
 	Beep:Stop()
 	Explosion:Play()
+	Attach:Destroy()
 end)
-
-Attach:Destroy()
