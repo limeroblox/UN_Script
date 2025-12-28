@@ -1,68 +1,126 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
 local Head = Character:WaitForChild("Head")
 
--- ================ YOUR HURT SOUND PATHS (TRY THESE VARIATIONS) ================
--- Most executors use one of these formats. We'll test ALL common ones.
-
-local PossibleHurtPaths = {
-    -- Format 1: No prefix (most common in 2024-2025 executors)
-    "GeneralSFX/Hurt/Hurt_1.mp3",
-    "GeneralSFX/Hurt/Hurt_2.mp3",
-    "GeneralSFX/Hurt/Hurt_3.mp3",
-
-    -- Format 2: rbxasset:// (very common)
-    "rbxasset://GeneralSFX/Hurt/Hurt_1.mp3",
-    "rbxasset://GeneralSFX/Hurt/Hurt_2.mp3",
-    "rbxasset://GeneralSFX/Hurt/Hurt_3.mp3",
-
-    -- Format 3: rbxassetid:// (your original)
-    "rbxassetid://GeneralSFX/Hurt/Hurt_1.mp3",
-    "rbxassetid://GeneralSFX/Hurt/Hurt_2.mp3",
-    "rbxassetid://GeneralSFX/Hurt/Hurt_3.mp3",
-
-    -- Backup: if files are directly in sounds root
+-- ================ YOUR HURT SOUND FILES ================
+-- Put these EXACTLY in your executor's root folder:
+local HurtFiles = {
     "Hurt_1.mp3",
-    "Hurt_2.mp3",
+    "Hurt_2.mp3", 
     "Hurt_3.mp3",
+    -- Add more: "my_custom_grunt.mp3", etc.
 }
 
-local VOLUME = 6  -- Crank it up to hear clearly
+local HURT_VOLUME = 7
 
--- ================ TEST FUNCTION ================
-local function TestPlaySound(path)
-    print("Testing path:", path)
+-- Cache for loaded asset IDs (so we don't reload files every time)
+local HurtAssetIds = {}
 
-    local sound = Instance.new("Sound")
-    sound.SoundId = path
-    sound.Volume = VOLUME
-    sound.Parent = Head
-
-    local success, err = pcall(function()
-        sound:Play()
-    end)
-
-    if success then
-        print("PLAYED SUCCESSFULLY:", path)
-    else
-        print("FAILED:", path, "| Error:", err or "Unknown")
+-- Function to convert MP3 file → playable asset ID (your working method)
+local function LoadMp3ToAsset(filename)
+    if HurtAssetIds[filename] then
+        return HurtAssetIds[filename]  -- Already cached
     end
+
+    print("Loading", filename, "...")
+    
+    -- Read MP3
+    local ok, mp3Data = pcall(readfile, filename)
+    if not ok or not mp3Data then
+        warn("Failed to read", filename)
+        return nil
+    end
+    
+    -- Write temp file
+    local tempName = "Temp_Hurt_" .. tick() .. ".mp3"
+    pcall(writefile, tempName, mp3Data)
+    
+    -- Asset maker (works with Synapse, Fluxus, Solara, etc.)
+    local assetMaker = getsynasset or getcustomasset or get_custom_asset or get_synasset or getsyn
+    if not assetMaker or type(assetMaker) ~= "function" then
+        warn("No asset maker found")
+        return nil
+    end
+    
+    -- Try different paths
+    local assetId
+    for _, arg in ipairs({tempName, filename, "workspace/"..filename}) do
+        local ok2, res = pcall(assetMaker, arg)
+        if ok2 and res then
+            assetId = res
+            break
+        end
+    end
+    
+    if assetId then
+        HurtAssetIds[filename] = assetId
+        print("✅ Loaded", filename, "→", assetId)
+    else
+        warn("Failed to create asset for", filename)
+    end
+    
+    return assetId
+end
+
+-- Preload all hurt sounds
+print("Preloading hurt sounds...")
+for _, filename in ipairs(HurtFiles) do
+    LoadMp3ToAsset(filename)
+end
+
+local WorkingHurtIds = {}
+for _, id in pairs(HurtAssetIds) do
+    table.insert(WorkingHurtIds, id)
+end
+
+print("Loaded", #WorkingHurtIds, "working hurt sounds!")
+
+-- Play random hurt sound
+local function PlayHurtSound()
+    if #WorkingHurtIds == 0 then
+        warn("No working hurt sounds loaded!")
+        return
+    end
+
+    local chosenId = WorkingHurtIds[math.random(1, #WorkingHurtIds)]
+    
+    local sound = Instance.new("Sound")
+    sound.SoundId = chosenId
+    sound.Volume = HURT_VOLUME
+    sound.Parent = Head
 
     sound.Ended:Connect(function()
         sound:Destroy()
     end)
+
+    sound:Play()
+    print("🔊 Played hurt sound:", chosenId)
 end
 
--- ================ RUN THE TEST ================
-print("HURT SOUND TEST STARTED")
-print("Listen carefully — it will try ALL paths one by one...\n")
+-- Play on ANY damage
+local lastHealth = Humanoid.Health
 
-for i, path in ipairs(PossibleHurtPaths) do
-    TestPlaySound(path)
-    task.wait(2.5)  -- Wait 2.5 seconds between each test so you can hear clearly
+local function OnHealthChanged(newHealth)
+    local damage = lastHealth - newHealth
+    if damage > 0 then
+        PlayHurtSound()
+    end
+    lastHealth = newHealth
 end
 
-print("\nTEST COMPLETE!")
-print("If you heard any sounds, copy the path that said 'PLAYED SUCCESSFULLY' and tell me.")
-print("If NONE played, your files might be in a different folder — check your executor's sounds/workspace tab.")
+Humanoid.HealthChanged:Connect(OnHealthChanged)
+
+-- Respawn support
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    Humanoid = newChar:WaitForChild("Humanoid")
+    Head = newChar:WaitForChild("Head")
+    lastHealth = Humanoid.Health
+    Humanoid.HealthChanged:Connect(OnHealthChanged)
+end)
+
+print("🎵 Hurt Sound System ACTIVE!")
+print("Files needed in executor root: Hurt_1.mp3, Hurt_2.mp3, Hurt_3.mp3")
+print("Plays on EVERY damage taken!")
