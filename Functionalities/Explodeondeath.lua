@@ -1,7 +1,17 @@
 local Players = game:GetService("Players")
-local Player = Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
-local Torso = Character:WaitForChild("Torso")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Torso = Character:FindFirstChild("Torso")
+
+if not Torso then 
+    warn("Torso Not Detected")
+    return
+end
+
+-- container
+local Holder = Instance.new("Folder")
+Holder.Name = "BeepAttachmentHolder"
+Holder.Parent = Character
 
 -- attachment
 local Attach = Instance.new("Attachment")
@@ -15,10 +25,7 @@ Lights.Parent = Attach
 Lights.Enabled = false
 Lights.Speed = NumberRange.new(0, 0)
 Lights.Rotation = NumberRange.new(0, 90)
-Lights.Color = ColorSequence.new(
-	Color3.fromRGB(255,58,58),
-	Color3.fromRGB(255,0,0)
-)
+Lights.Color = ColorSequence.new(Color3.fromRGB(255,58,58), Color3.fromRGB(255,0,0))
 Lights.LightEmission = 1
 Lights.Texture = "rbxassetid://8855082601"
 Lights.Size = NumberSequence.new(1.47, 10)
@@ -56,28 +63,28 @@ Distort.Parent = Explosion
 
 -- SEQUENCE
 task.spawn(function()
-	Initial:Emit(10)
-	Lights.Enabled = true
+    -- initial flash
+    Initial:Emit(10)
+    Lights.Enabled = true
+    Beep:Play()
 
-	Beep:Play()
+    -- ramp up beep speed
+    for i = 1, 10 do
+        Beep.PlaybackSpeed += 0.05
+        task.wait(0.1)
+    end
 
-	for i = 1, 10 do
-		Beep.PlaybackSpeed += 0.05
-		task.wait(0.1)
-	end
+    task.wait(5)
 
-	task.wait(5)
+    -- stop particles
+    Lights.Enabled = false
+    Initial.Enabled = false
 
-	-- STOP PARTICLES FIRST
-	Lights.Enabled = false
-	Initial.Enabled = false
+    -- explosion
+    Beep:Stop()
+    Explosion:Play()
 
-	-- explosion
-	Beep:Stop()
-	Explosion:Play()
-
-	-- wait then cleanup
-	task.wait(Explosion.TimeLength + 0.2)
-	Attach:Destroy()
+    -- destroy attachment after sequence finishes
+    task.wait(2) -- wait so explosion sound can play
+    Attach:Destroy()
 end)
-
