@@ -68,12 +68,16 @@ task.spawn(function()
 
 	task.wait(5)
 
-	Beep:Stop()
+	-- STOP PARTICLES FIRST
 	Lights.Enabled = false
+	Initial.Enabled = false
+
+	-- explosion
+	Beep:Stop()
 	Explosion:Play()
 
-	task.wait(3)
-
-	-- cleanup
+	-- wait then cleanup
+	task.wait(Explosion.TimeLength + 0.2)
 	Attach:Destroy()
 end)
+
