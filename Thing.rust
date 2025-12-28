@@ -1,0 +1,76 @@
+-- Executor Workspace Explorer Script
+-- Run this as a LocalScript to print the full structure of your executor's workspace
+
+local function ExploreInstance(instance, depth)
+    depth = depth or 0
+    local indent = string.rep("  ", depth)
+    
+    if not instance then
+        print(indent .. "[NIL]")
+        return
+    end
+    
+    print(indent .. instance.ClassName .. ": " .. instance.Name)
+    
+    -- If it's a Folder or Model, list children
+    if instance:IsA("Folder") or instance:IsA("Model") or instance:IsA("Workspace") then
+        for _, child in ipairs(instance:GetChildren()) do
+            pcall(function()  -- pcall in case something errors
+                ExploreInstance(child, depth + 1)
+            end)
+        end
+    end
+    
+    -- Special highlight for Sounds
+    if instance:IsA("Sound") then
+        local soundId = instance.SoundId or "none"
+        local volume = instance.Volume
+        print(indent .. "   🔊 SoundId: " .. soundId .. " | Volume: " .. volume)
+    end
+end
+
+local function FindExecutorWorkspace()
+    print("=== Searching for Executor Workspace ===")
+    
+    -- Common locations used by executors
+    local candidates = {
+        shared.Workspace,
+        shared.workspace,
+        getrenv().workspace,
+        getgc and shared.Workspace,  -- fallback
+        _G.ExecutorWorkspace,
+        _G.workspace,
+    }
+    
+    -- Also check common executor globals
+    if syn then print("Detected: Synapse") end
+    if fluxus then print("Detected: Fluxus") end
+    if Krnl then print("Detected: Krnl") end
+    if identifyexecutor then 
+        local name, version = identifyexecutor()
+        print("Detected Executor:", name, version)
+    end
+    
+    for i, ws in ipairs(candidates) do
+        if ws and typeof(ws) == "Instance" then
+            print("Found candidate workspace #" .. i .. ": " .. ws.Name .. " (" .. ws.ClassName .. ")")
+            return ws
+        end
+    end
+    
+    warn("No executor workspace found!")
+    return nil
+end
+
+-- Main execution
+local ExecWS = FindExecutorWorkspace()
+
+if ExecWS then
+    print("\n=== FULL CONTENTS OF EXECUTOR WORKSPACE ===")
+    print("Root: " .. ExecWS.Name .. " (" .. ExecWS.ClassName .. ")\n")
+    ExploreInstance(ExecWS)
+else
+    print("Could not locate any executor workspace.")
+end
+
+print("\n=== Exploration Complete ===")
