@@ -1,116 +1,68 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
 local Head = Character:WaitForChild("Head")
 
--- Your file paths (change ONLY if your folder/files are named differently)
-local HurtFilePaths = {
+-- ================ YOUR HURT SOUND PATHS (TRY THESE VARIATIONS) ================
+-- Most executors use one of these formats. We'll test ALL common ones.
+
+local PossibleHurtPaths = {
+    -- Format 1: No prefix (most common in 2024-2025 executors)
+    "GeneralSFX/Hurt/Hurt_1.mp3",
+    "GeneralSFX/Hurt/Hurt_2.mp3",
+    "GeneralSFX/Hurt/Hurt_3.mp3",
+
+    -- Format 2: rbxasset:// (very common)
+    "rbxasset://GeneralSFX/Hurt/Hurt_1.mp3",
+    "rbxasset://GeneralSFX/Hurt/Hurt_2.mp3",
+    "rbxasset://GeneralSFX/Hurt/Hurt_3.mp3",
+
+    -- Format 3: rbxassetid:// (your original)
+    "rbxassetid://GeneralSFX/Hurt/Hurt_1.mp3",
+    "rbxassetid://GeneralSFX/Hurt/Hurt_2.mp3",
+    "rbxassetid://GeneralSFX/Hurt/Hurt_3.mp3",
+
+    -- Backup: if files are directly in sounds root
     "Hurt_1.mp3",
     "Hurt_2.mp3",
     "Hurt_3.mp3",
 }
 
--- Possible base folders (most common ones)
-local BaseFolders = {
-    "GeneralSFX/Hurt/",
-    "GeneralSFX/Hurt/",     -- duplicate for case
-    "sounds/Hurt/",
-    "SFX/Hurt/",
-    "GeneralSFX/",          -- if files are directly in GeneralSFX
-    "",                     -- if files are in root sounds folder
-}
+local VOLUME = 6  -- Crank it up to hear clearly
 
--- All prefix variants that executors support
-local Prefixes = {
-    "rbxassetid://",   -- Your original
-    "rbxasset://",     -- Most common working one
-    "",                -- No prefix (very common now)
-}
-
-local WorkingSounds = {}  -- Will store working SoundIds
-
--- Test all combinations to find working ones
-local function DiscoverWorkingSounds()
-    for _, base in ipairs(BaseFolders) do
-        for _, file in ipairs(HurtFilePaths) do
-            local fullPath = base .. file
-            for _, prefix in ipairs(Prefixes) do
-                local testId = prefix .. fullPath
-
-                local testSound = Instance.new("Sound")
-                testSound.SoundId = testId
-                testSound.Volume = 0  -- Silent test
-                testSound.Parent = workspace
-
-                local success, err = pcall(function()
-                    testSound:Play()
-                end)
-
-                testSound:Destroy()
-
-                if success or (err and not string.find(err, "load sound")) then
-                    table.insert(WorkingSounds, testId)
-                    print("✅ WORKING SOUND FOUND:", testId)
-                    break  -- Found one for this file, move to next
-                else
-                    print("❌ Failed:", testId, "| Error:", err or "Unknown")
-                end
-            end
-        end
-    end
-
-    if #WorkingSounds == 0 then
-        warn("NO WORKING HURT SOUNDS FOUND! Check folder placement and executor.")
-        print("Put your Hurt_1.mp3, Hurt_2.mp3, Hurt_3.mp3 in one of these locations:")
-        print(" - GeneralSFX/Hurt/")
-        print(" - sounds/Hurt/")
-        print(" - Or root sounds folder")
-    else
-        print("Found", #WorkingSounds, "working hurt sound(s)!")
-    end
-end
-
-DiscoverWorkingSounds()
-
--- Play random working sound
-local function PlayHurtSound()
-    if #WorkingSounds == 0 then return end
-
-    local chosen = WorkingSounds[math.random(1, #WorkingSounds)]
+-- ================ TEST FUNCTION ================
+local function TestPlaySound(path)
+    print("Testing path:", path)
 
     local sound = Instance.new("Sound")
-    sound.SoundId = chosen
-    sound.Volume = 6
+    sound.SoundId = path
+    sound.Volume = VOLUME
     sound.Parent = Head
+
+    local success, err = pcall(function()
+        sound:Play()
+    end)
+
+    if success then
+        print("PLAYED SUCCESSFULLY:", path)
+    else
+        print("FAILED:", path, "| Error:", err or "Unknown")
+    end
 
     sound.Ended:Connect(function()
         sound:Destroy()
     end)
-
-    sound:Play()
 end
 
--- Play on ANY damage
-local lastHealth = Humanoid.Health
+-- ================ RUN THE TEST ================
+print("HURT SOUND TEST STARTED")
+print("Listen carefully — it will try ALL paths one by one...\n")
 
-local function OnHealthChanged(newHealth)
-    local damage = lastHealth - newHealth
-    if damage > 0 then
-        PlayHurtSound()
-    end
-    lastHealth = newHealth
+for i, path in ipairs(PossibleHurtPaths) do
+    TestPlaySound(path)
+    task.wait(2.5)  -- Wait 2.5 seconds between each test so you can hear clearly
 end
 
-Humanoid.HealthChanged:Connect(OnHealthChanged)
-
--- Respawn support
-LocalPlayer.CharacterAdded:Connect(function(newChar)
-    Character = newChar
-    Humanoid = newChar:WaitForChild("Humanoid")
-    Head = newChar:WaitForChild("Head")
-    lastHealth = Humanoid.Health
-    Humanoid.HealthChanged:Connect(OnHealthChanged)
-end)
-
-print("Hurt Sound Script Injected – Testing Paths...")
+print("\nTEST COMPLETE!")
+print("If you heard any sounds, copy the path that said 'PLAYED SUCCESSFULLY' and tell me.")
+print("If NONE played, your files might be in a different folder — check your executor's sounds/workspace tab.")
