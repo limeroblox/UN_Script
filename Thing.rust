@@ -5,15 +5,14 @@ local Humanoid = Character:WaitForChild("Humanoid")
 local Head = Character:WaitForChild("Head")
 
 -- ================ YOUR HURT SOUNDS PATHS ================
--- Add or remove as needed. These are your exact file names.
 local HurtSounds = {
     "rbxassetid://GeneralSFX/Hurt/Hurt_1.mp3",
     "rbxassetid://GeneralSFX/Hurt/Hurt_2.mp3",
     "rbxassetid://GeneralSFX/Hurt/Hurt_3.mp3",
-    -- Add more if you have Hurt_4.mp3, custom_pain.mp3, etc.
+    -- Add more if you want: "rbxassetid://GeneralSFX/Hurt/custom_grunt.mp3",
 }
 
--- Optional: Volume (most executors allow up to 10)
+-- Optional: Volume control (most executors allow up to 10)
 local HURT_VOLUME = 6
 
 -- ================ PLAY FUNCTION ================
@@ -39,38 +38,33 @@ end
 
 -- ================ HEALTH TRACKING ================
 local lastHealth = Humanoid.Health
-local hurtCooldown = 0.9  -- seconds between hurt sounds (adjust if needed)
-local lastHurtTime = 0
 
 local function OnHealthChanged(newHealth)
     local damage = lastHealth - newHealth
-    lastHealth = newHealth
 
-    -- Only play on medium damage (5–20) to avoid spam on tiny hits or death
-    if damage >= 5 and damage <= 20 then
-        local now = tick()
-        if now - lastHurtTime >= hurtCooldown then
-            lastHurtTime = now
-            PlayHurtSound()
-        end
+    -- Play sound on ANY positive damage (even 1 HP)
+    if damage > 0 then
+        PlayHurtSound()
     end
+
+    lastHealth = newHealth
 end
 
 -- ================ CONNECTIONS ================
 Humanoid.HealthChanged:Connect(OnHealthChanged)
 
--- Respawn support
+-- Respawn support (reconnects everything cleanly)
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     Character = newChar
     Humanoid = newChar:WaitForChild("Humanoid")
     Head = newChar:WaitForChild("Head")
 
     lastHealth = Humanoid.Health
-    lastHurtTime = 0
 
     Humanoid.HealthChanged:Connect(OnHealthChanged)
 end)
 
-print("Hurt Sounds Loaded!")
-print("Playing from: GeneralSFX/Hurt/")
-print("Loaded", #HurtSounds, "hurt sound(s)")
+print("Hurt Sounds Active!")
+print("Plays on ANY damage taken")
+print("Using GeneralSFX/Hurt/Hurt_1-3.mp3")
+print("Loaded", #HurtSounds, "sound(s)")
