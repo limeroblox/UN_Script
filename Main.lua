@@ -4,43 +4,51 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local Head = Character:WaitForChild("Head")
 
--- Load functionalities (without executing them immediately)
+-- Load functionalities ONCE at startup
 local ExplodeondeathSrc = loadstring(game:HttpGet("https://raw.githubusercontent.com/limeroblox/UN_Script/refs/heads/main/Functionalities/Explodeondeath.lua"))
 local PanicSmokeSrc = loadstring(game:HttpGet("https://raw.githubusercontent.com/limeroblox/UN_Script/refs/heads/main/Functionalities/LowHealthPanic.lua"))
 
--- Store the functions to call later
 local Explodeondeath = nil
 local PanicSmoke = nil
 
--- Improved executor workspace detection (NO fallback to game.Workspace)
+-- Advanced executor workspace detection: Try candidates, pick FIRST with "GeneralSFX"
 local function GetExecutorWorkspace()
-    -- Common executor identifiers
-    if identifyexecutor then
-        return getrenv().workspace or shared.workspace or nil
-    end
-    if getexecutorname then
-        return getrenv().workspace or shared.workspace or nil
-    end
-    if syn and syn.request then  -- Synapse
-        return shared.Workspace or shared.workspace or nil
-    end
-    if fluxus and fluxus.request then  -- Fluxus
-        return shared.Workspace or shared.workspace or nil
-    end
-    if Krnl then  -- Krnl
-        return shared.Workspace or nil
-    end
-    if getgc then  -- Generic fallback for many
-        return shared.Workspace or shared.workspace or nil
+    local candidates = {
+        syn and syn.workspace,
+        fluxus and fluxus.workspace,
+        Krnl and Krnl.workspace,
+        ScriptWare and ScriptWare.workspace,
+        Electron and Electron.workspace,
+        Valyse and Valyse.workspace,
+        Solara and Solara.workspace,
+        shared.Workspace,
+        shared.workspace,
+        getrenv().workspace,
+        getgenv().workspace,
+        _G.workspace,
+        identifyexecutor and getrenv().workspace,
+        getexecutorname and getrenv().workspace,
+    }
+
+    print("=== Scanning for Executor Workspace with GeneralSFX ===")
+    for i, ws in ipairs(candidates) do
+        if ws and ws:IsA("Workspace") then
+            print("Candidate", i, "- Exists:", ws.Name or ws.ClassName)
+            if ws:FindFirstChild("GeneralSFX") then
+                print("🎉 FOUND ExecWS with GeneralSFX! (Candidate", i, ")")
+                return ws
+            end
+        end
     end
 
-    warn("No executor workspace detected. Sound loading will be skipped.")
+    warn("❌ No ExecWS with GeneralSFX found. Place your sounds there!")
+    print("Tip: Download GeneralSFX folder & put in your executor's sounds/workspace")
     return nil
 end
 
 local ExecWS = GetExecutorWorkspace()
 
--- Function to get all sounds in a folder
+-- Get all sounds in folder
 local function GetSounds(folder)
     local sounds = {}
     if folder and folder:IsA("Folder") then
@@ -53,76 +61,78 @@ local function GetSounds(folder)
     return sounds
 end
 
--- Initialize sound tables
 local HurtSound = {}
 local DeathSound = {}
 
--- Safely load sounds (only if executor workspace exists)
+-- Load sounds from GeneralSFX
 local function LoadSounds()
     if not ExecWS then
-        warn("Executor workspace not available - skipping sound load")
+        warn("No ExecWS - skipping sounds")
         return
     end
 
     local generalSFX = ExecWS:FindFirstChild("GeneralSFX")
     if not generalSFX then
-        warn("GeneralSFX folder not found in executor workspace")
+        warn("GeneralSFX missing in ExecWS")
         return
     end
+    print("✅ GeneralSFX found!")
 
-    -- Load hurt sounds
+    -- Hurt sounds
     local hurtFolder = generalSFX:FindFirstChild("Hurt")
     if hurtFolder then
+        print("✅ Hurt folder found")
+        -- Specific Hurt_1.mp3 etc.
         for i = 1, 3 do
             local soundName = "Hurt_" .. i .. ".mp3"
             local sound = hurtFolder:FindFirstChild(soundName)
-            if sound and sound:IsA("Sound") then
+            if sound then
                 table.insert(HurtSound, sound)
             end
         end
-
+        -- Fallback: all sounds
         if #HurtSound == 0 then
-            warn("No specific hurt sounds found, falling back to all sounds in Hurt folder")
             HurtSound = GetSounds(hurtFolder)
+            print("   Using all sounds in Hurt (fallback)")
+        else
+            print("   Specific Hurt sounds loaded:", #HurtSound)
         end
     else
-        warn("Hurt folder not found in GeneralSFX")
+        warn("Hurt folder missing")
     end
 
-    -- Load death sounds
+    -- Death sounds
     local deathFolder = generalSFX:FindFirstChild("Death")
     if deathFolder then
         DeathSound = GetSounds(deathFolder)
+        print("✅ Death sounds loaded:", #DeathSound)
     else
-        warn("Death folder not found in GeneralSFX")
+        warn("Death folder missing")
     end
 end
 
 LoadSounds()
 
--- Play a random sound from a table (cloned to Head for spatial/local playback)
+-- Play cloned sound (uses pick.SoundId = "rbxassetid://path/to/file.mp3")
 local function PlayExecSound(soundList)
-    if not soundList or #soundList == 0 then
-        return
-    end
+    if #soundList == 0 then return end
 
     local pick = soundList[math.random(1, #soundList)]
-    if pick and pick:IsA("Sound") then
-        local soundClone = Instance.new("Sound")
-        soundClone.Name = "CustomSound"
-        soundClone.SoundId = pick.SoundId
-        soundClone.Volume = pick.Volume > 0 and pick.Volume or 0.5
-        soundClone.Parent = Head
+    local soundClone = Instance.new("Sound")
+    soundClone.Name = "CustomSound"
+    soundClone.SoundId = pick.SoundId  -- This is "rbxassetid://GeneralSFX/Hurt/Hurt_1.mp3" etc.
+    soundClone.Volume = pick.Volume > 0 and pick.Volume or 0.5
+    soundClone.Parent = Head
 
-        soundClone.Ended:Connect(function()
-            soundClone:Destroy()
-        end)
+    soundClone.Ended:Connect(function()
+        soundClone:Destroy()
+    end)
 
-        soundClone:Play()
-    end
+    soundClone:Play()
+    print("🔊 Played:", pick.Name, "| ID:", pick.SoundId)  -- Debug: remove later if spammy
 end
 
--- Cooldown for hurt sounds
+-- Cooldowns & tracking
 local hurtCooldown = 1
 local lastHurtTime = 0
 local lastHealth = Humanoid.Health
@@ -130,7 +140,6 @@ local lastHealth = Humanoid.Health
 local function OnHealthChanged(health)
     local damage = lastHealth - health
     lastHealth = health
-
     if damage >= 5 and damage <= 15 then
         local now = tick()
         if now - lastHurtTime >= hurtCooldown then
@@ -143,33 +152,48 @@ end
 local function OnDied()
     PlayExecSound(DeathSound)
 
-    if ExplodeondeathSrc then
+    -- Load & run Explode on Death (once)
+    if ExplodeondeathSrc and not Explodeondeath then
         local success, func = pcall(ExplodeondeathSrc)
         if success and type(func) == "function" then
             Explodeondeath = func
             pcall(Explodeondeath)
-        else
-            warn("Failed to load/run Explodeondeath")
         end
+    elseif Explodeondeath then
+        pcall(Explodeondeath)
     end
 end
 
 local function SetupPanicSmoke()
-    if PanicSmokeSrc then
+    if PanicSmokeSrc and not PanicSmoke then
         local success, func = pcall(PanicSmokeSrc)
         if success and type(func) == "function" then
             PanicSmoke = func
-            -- Call it here or tie to health if desired
+            print("PanicSmoke loaded (call manually or tie to low HP)")
         end
     end
 end
 
--- Initial connections
-Humanoid.HealthChanged:Connect(OnHealthChanged)
-Humanoid.Died:Connect(OnDied)
+-- Connection management to avoid duplicates
+local Connections = {}
+
+local function ConnectEvents()
+    -- Clear old
+    for _, conn in pairs(Connections) do
+        if conn then conn:Disconnect() end
+    end
+    Connections = {}
+
+    -- New
+    table.insert(Connections, Humanoid.HealthChanged:Connect(OnHealthChanged))
+    table.insert(Connections, Humanoid.Died:Connect(OnDied))
+end
+
+-- Initial setup
+ConnectEvents()
 SetupPanicSmoke()
 
--- Handle respawns properly
+-- Respawn handler
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     Character = newChar
     Humanoid = newChar:WaitForChild("Humanoid")
@@ -178,15 +202,10 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     lastHealth = Humanoid.Health
     lastHurtTime = 0
 
-    -- Reconnect events (disconnect old if needed, but simple reconnect is fine)
-    Humanoid.HealthChanged:Connect(OnHealthChanged)
-    Humanoid.Died:Connect(OnDied)
-
-    -- Reload sounds in case executor workspace changed/reloaded
-    LoadSounds()
+    ConnectEvents()
+    LoadSounds()  -- Reload sounds if needed
 end)
 
--- Debug output
-print("Loaded Hurt Sounds:", #HurtSound)
-print("Loaded Death Sounds:", #DeathSound)
-print("Using executor workspace:", ExecWS ~= nil)
+print("🎵 UN_Script Sounds Fixed & Loaded!")
+print("Hurt:", #HurtSound, "| Death:", #DeathSound)
+print("ExecWS:", ExecWS and ExecWS.Name or "NONE")
