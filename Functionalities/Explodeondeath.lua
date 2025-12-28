@@ -83,8 +83,5 @@ task.spawn(function()
     -- explosion
     Beep:Stop()
     Explosion:Play()
-
-    -- destroy attachment after sequence finishes
-    task.wait(2) -- wait so explosion sound can play
     Attach:Destroy()
 end)
