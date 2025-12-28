@@ -4,7 +4,7 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Torso = Character:FindFirstChild("Torso")
 
 if not Torso then 
-  warn("Torso Not Detected")
+	warn("Torso Not Detected")
 end
 
 -- container
@@ -84,4 +84,4 @@ task.spawn(function()
 	Explosion:Play()
 end)
 
-Holder:Destroy()
+Attach:Destroy()
