@@ -12,62 +12,63 @@ local PanicSmokeSrc = loadstring(game:HttpGet("https://raw.githubusercontent.com
 local Explodeondeath = nil
 local PanicSmoke = nil
 
--- Try to get executor workspace using exploit-specific methods
+-- For Delta iOS, workspace is usually accessed normally
+-- But sometimes sound assets need to be loaded from game's Workspace or ReplicatedStorage
 local ExecWS = nil
 
--- Method 1: Check if exploit provides direct access
-if getexecutorname and type(getexecutorname) == "function" then
-    -- For exploits that expose executor workspace in global environment
-    if syn and syn.get_thread_identity then
-        local old_identity = syn.get_thread_identity()
-        syn.set_thread_identity(7) -- Set to script identity for access
-        ExecWS = workspace
-        syn.set_thread_identity(old_identity)
-    elseif get_hidden_gui then
-        -- Some exploits like Script-Ware
-        ExecWS = get_hidden_gui():FindFirstAncestorWhichIsA("Workspace")
+-- Try different locations for Delta iOS
+-- Delta often uses the regular workspace or ReplicatedStorage for sounds
+local function FindSoundFolders()
+    -- Check regular workspace first
+    local workspaceSFX = workspace:FindFirstChild("GeneralSFX")
+    if workspaceSFX then
+        print("Found GeneralSFX in workspace")
+        return workspace
     end
-end
-
--- Method 2: Check common exploit global variables
-if not ExecWS then
-    if _G.__EXECUTOR and _G.__EXECUTOR.Workspace then
-        ExecWS = _G.__EXECUTOR.Workspace
-    elseif shared and shared.workspace then
-        ExecWS = shared.workspace
-    elseif _G.Workspace then
-        ExecWS = _G.Workspace
-    end
-end
-
--- Method 3: Try to find it through CoreGui or other containers
-if not ExecWS then
-    local success, result = pcall(function()
-        return game:GetService("CoreGui"):FindFirstChild("ExecutorWorkspace") or 
-               game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ExecutorWorkspace")
-    end)
-    if success and result then
-        ExecWS = result
-    end
-end
-
--- Method 4: Last resort - check all possible parent objects
-if not ExecWS then
-    warn("Executor workspace not found, checking all possible locations...")
     
-    -- Check if there's a special workspace created by the executor
-    for _, obj in pairs(game:GetDescendants()) do
-        if obj.Name == "ExecutorWorkspace" or obj.Name == "ScriptWorkspace" then
-            ExecWS = obj
-            break
+    -- Check ReplicatedStorage
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local rsSFX = replicatedStorage:FindFirstChild("GeneralSFX")
+    if rsSFX then
+        print("Found GeneralSFX in ReplicatedStorage")
+        return replicatedStorage
+    end
+    
+    -- Check SoundService
+    local soundService = game:GetService("SoundService")
+    local ssSFX = soundService:FindFirstChild("GeneralSFX")
+    if ssSFX then
+        print("Found GeneralSFX in SoundService")
+        return soundService
+    end
+    
+    -- Check ServerStorage
+    local serverStorage = game:GetService("ServerStorage")
+    local serverSFX = serverStorage:FindFirstChild("GeneralSFX")
+    if serverSFX then
+        print("Found GeneralSFX in ServerStorage")
+        return serverStorage
+    end
+    
+    -- Last resort: check all services
+    print("Searching all services for GeneralSFX...")
+    for _, service in pairs(game:GetChildren()) do
+        if service:IsA("DataModel") or service:IsA("Workspace") or service:IsA("ReplicatedStorage") or service:IsA("SoundService") then
+            local sfx = service:FindFirstChild("GeneralSFX")
+            if sfx then
+                print("Found GeneralSFX in", service.Name)
+                return service
+            end
         end
     end
+    
+    -- Default to workspace
+    print("GeneralSFX not found, defaulting to workspace")
+    return workspace
 end
 
--- Fallback to game workspace if executor workspace not found
-ExecWS = ExecWS or workspace
-
-print("Using workspace:", ExecWS:GetFullName())
+ExecWS = FindSoundFolders()
+print("Using sound source:", ExecWS:GetFullName())
 
 -- Function to get all sounds in a folder
 local function GetSounds(folder)
@@ -86,12 +87,22 @@ end
 local HurtSound = {}
 local DeathSound = {}
 
--- Safely load sounds
+-- Safely load sounds with Delta iOS compatibility
 local function LoadSounds()
     -- Find GeneralSFX folder
     local generalSFX = ExecWS:FindFirstChild("GeneralSFX")
     if not generalSFX then
-        warn("GeneralSFX folder not found in", ExecWS:GetFullName())
+        warn("❌ GeneralSFX folder not found in", ExecWS:GetFullName())
+        
+        -- Try to create a simple test to see where sounds might be
+        print("🔍 Searching for any sound folders...")
+        for _, child in ipairs(ExecWS:GetDescendants()) do
+            if child:IsA("Sound") then
+                print("Found a sound:", child:GetFullName())
+            elseif child:IsA("Folder") and (child.Name:find("Hurt") or child.Name:find("hurt") or child.Name:find("Death") or child.Name:find("death")) then
+                print("Found potential sound folder:", child:GetFullName())
+            end
+        end
         return
     end
     
@@ -99,56 +110,102 @@ local function LoadSounds()
     local hurtFolder = generalSFX:FindFirstChild("Hurt")
     if hurtFolder then
         -- Try to get specific hurt sounds
+        local foundAny = false
         for i = 1, 3 do
             local soundName = "Hurt_" .. i .. ".mp3"
             local sound = hurtFolder:FindFirstChild(soundName)
             if sound then
                 table.insert(HurtSound, sound)
+                foundAny = true
+                print("✓ Loaded hurt sound:", soundName)
+            else
+                -- Try without .mp3 extension
+                soundName = "Hurt_" .. i
+                sound = hurtFolder:FindFirstChild(soundName)
+                if sound and sound:IsA("Sound") then
+                    table.insert(HurtSound, sound)
+                    foundAny = true
+                    print("✓ Loaded hurt sound:", soundName)
+                end
             end
         end
         
         -- If no specific sounds found, get all sounds in folder
         if #HurtSound == 0 then
-            warn("No specific hurt sounds found, getting all sounds in Hurt folder")
+            print("⚠ No specific hurt sounds found, getting all sounds in Hurt folder")
             HurtSound = GetSounds(hurtFolder)
         end
     else
-        warn("Hurt folder not found in GeneralSFX")
+        warn("❌ Hurt folder not found in GeneralSFX")
+        -- Check if hurt sounds are directly in GeneralSFX
+        for _, child in ipairs(generalSFX:GetChildren()) do
+            if child:IsA("Sound") and child.Name:lower():find("hurt") then
+                table.insert(HurtSound, child)
+                print("✓ Found hurt sound in GeneralSFX:", child.Name)
+            end
+        end
     end
     
     -- Load death sounds
     local deathFolder = generalSFX:FindFirstChild("Death")
     if deathFolder then
         DeathSound = GetSounds(deathFolder)
+        print("✓ Loaded", #DeathSound, "death sounds from Death folder")
     else
-        warn("Death folder not found in GeneralSFX")
+        warn("❌ Death folder not found in GeneralSFX")
+        -- Check if death sounds are directly in GeneralSFX
+        for _, child in ipairs(generalSFX:GetChildren()) do
+            if child:IsA("Sound") and child.Name:lower():find("death") then
+                table.insert(DeathSound, child)
+                print("✓ Found death sound in GeneralSFX:", child.Name)
+            end
+        end
     end
     
-    print("Loaded", #HurtSound, "hurt sounds and", #DeathSound, "death sounds")
+    print("✅ Loaded", #HurtSound, "hurt sounds and", #DeathSound, "death sounds")
 end
 
 -- Call LoadSounds
 LoadSounds()
 
--- Play a random sound from a table
+-- Play a random sound from a table (Delta iOS compatible)
 local function PlayExecSound(soundList)
     if not soundList or #soundList == 0 then 
+        warn("⚠ No sounds available to play")
         return
     end
     
     local pick = soundList[math.random(1, #soundList)]
     if pick and pick:IsA("Sound") then
+        -- For Delta iOS, we need to handle sounds carefully
         local soundClone = Instance.new("Sound")
         soundClone.SoundId = pick.SoundId
         soundClone.Volume = pick.Volume or 0.5
+        soundClone.PlaybackSpeed = pick.PlaybackSpeed or 1
         soundClone.Parent = Head
         
-        -- Handle sound ending
+        -- Delta iOS might have issues with sound ending events
         soundClone.Ended:Connect(function()
-            soundClone:Destroy()
+            task.wait(0.1) -- Small delay for stability
+            if soundClone then
+                soundClone:Destroy()
+            end
         end)
         
-        soundClone:Play()
+        -- Handle if sound fails to play
+        soundClone.PlayOnRemove = false
+        
+        -- Try to play with error handling
+        local success, err = pcall(function()
+            soundClone:Play()
+        end)
+        
+        if not success then
+            warn("❌ Failed to play sound:", err)
+            soundClone:Destroy()
+        else
+            print("🔊 Playing sound:", pick.Name)
+        end
     end
 end
 
@@ -183,11 +240,16 @@ local function OnDied()
         local success, func = pcall(ExplodeondeathSrc)
         if success and type(func) == "function" then
             Explodeondeath = func
+            print("💥 Executing Explodeondeath...")
             local execSuccess, err = pcall(Explodeondeath)
             if not execSuccess then
-                warn("Failed to execute Explodeondeath:", err)
+                warn("❌ Failed to execute Explodeondeath:", err)
             end
+        else
+            warn("❌ Failed to load Explodeondeath function")
         end
+    else
+        warn("❌ ExplodeondeathSrc not loaded")
     end
 end
 
@@ -197,16 +259,31 @@ local function SetupPanicSmoke()
         local success, func = pcall(PanicSmokeSrc)
         if success and type(func) == "function" then
             PanicSmoke = func
-            -- You can call this when needed
+            print("💨 PanicSmoke loaded")
+            
+            -- Monitor health for low health trigger
+            local lowHealthTriggered = false
             Humanoid.HealthChanged:Connect(function(health)
-                if health < 30 and health > 0 then
-                    local success, err = pcall(PanicSmoke)
-                    if not success then
-                        warn("PanicSmoke error:", err)
+                if health < 30 and health > 0 and not lowHealthTriggered then
+                    lowHealthTriggered = true
+                    print("🚨 Low health detected, triggering PanicSmoke...")
+                    local smokeSuccess, smokeErr = pcall(PanicSmoke)
+                    if not smokeSuccess then
+                        warn("❌ PanicSmoke error:", smokeErr)
                     end
+                    
+                    -- Reset after some time
+                    task.wait(10)
+                    lowHealthTriggered = false
+                elseif health >= 30 then
+                    lowHealthTriggered = false
                 end
             end)
+        else
+            warn("❌ Failed to load PanicSmoke function")
         end
+    else
+        warn("❌ PanicSmokeSrc not loaded")
     end
 end
 
@@ -218,37 +295,98 @@ Humanoid.Died:Connect(OnDied)
 SetupPanicSmoke()
 
 -- Handle character respawns
-LocalPlayer.CharacterAdded:Connect(function(newChar)
-    -- Wait for character to load
-    repeat
-        task.wait(0.1)
-    until newChar and newChar:FindFirstChild("Humanoid") and newChar:FindFirstChild("Head")
+local respawnConnection
+respawnConnection = LocalPlayer.CharacterAdded:Connect(function(newChar)
+    -- Disconnect old connection to prevent duplicates
+    if respawnConnection then
+        respawnConnection:Disconnect()
+    end
     
-    Character = newChar
-    Humanoid = Character:WaitForChild("Humanoid")
-    Head = Character:WaitForChild("Head")
+    task.wait(0.5) -- Wait for character to fully load
     
-    -- Reset health tracking
-    lastHealth = Humanoid.Health
-    lastHurtTime = 0
+    if newChar and newChar:FindFirstChild("Humanoid") and newChar:FindFirstChild("Head") then
+        Character = newChar
+        Humanoid = Character:WaitForChild("Humanoid")
+        Head = Character:WaitForChild("Head")
+        
+        -- Reset health tracking
+        lastHealth = Humanoid.Health
+        lastHurtTime = 0
+        
+        print("🔄 Character respawned, reconnecting events...")
+        
+        -- Reconnect events
+        Humanoid.HealthChanged:Connect(OnHealthChanged)
+        Humanoid.Died:Connect(OnDied)
+        
+        -- Reload sounds (in case workspace changed)
+        LoadSounds()
+    end
     
-    -- Reconnect events
-    Humanoid.HealthChanged:Connect(OnHealthChanged)
-    Humanoid.Died:Connect(OnDied)
-    
-    -- Reload sounds for new character
-    LoadSounds()
+    -- Re-establish connection for next respawn
+    respawnConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+        -- Recursive call with delay
+        task.wait(0.5)
+        if char and char:FindFirstChild("Humanoid") then
+            respawnConnection:Disconnect()
+            LoadSounds()
+            Humanoid = char:WaitForChild("Humanoid")
+            Head = char:WaitForChild("Head")
+            lastHealth = Humanoid.Health
+            lastHurtTime = 0
+        end
+    end)
 end)
 
--- Debug menu (optional - remove if not needed)
-local function CreateDebugMenu()
-    if ExecWS ~= workspace then
-        print("=== DEBUG INFO ===")
-        print("Executor Workspace:", ExecWS:GetFullName())
-        print("Hurt Sounds Loaded:", #HurtSound)
-        print("Death Sounds Loaded:", #DeathSound)
-        print("==================")
+-- Delta iOS specific: Add a manual sound test command
+local function AddTestCommand()
+    -- Create a simple test function that can be called from console
+    _G.TestSounds = function()
+        print("🔊 Testing sound system...")
+        print("Hurt sounds available:", #HurtSound)
+        print("Death sounds available:", #DeathSound)
+        
+        if #HurtSound > 0 then
+            print("Playing test hurt sound...")
+            PlayExecSound(HurtSound)
+        else
+            print("❌ No hurt sounds available")
+        end
+        
+        task.wait(1)
+        
+        if #DeathSound > 0 then
+            print("Playing test death sound...")
+            PlayExecSound(DeathSound)
+        else
+            print("❌ No death sounds available")
+        end
     end
+    
+    print("✅ Sound system loaded!")
+    print("📝 Type '_G.TestSounds()' in console to test sounds")
 end
 
-CreateDebugMenu()
+AddTestCommand()
+
+-- Optional: Create a simple UI indicator
+if syn and syn.protect_gui then
+    local ScreenGui = Instance.new("ScreenGui")
+    if syn.protect_gui then
+        syn.protect_gui(ScreenGui)
+    end
+    ScreenGui.Parent = game:GetService("CoreGui")
+    
+    local TextLabel = Instance.new("TextLabel")
+    TextLabel.Text = "🔊 Sound System Active"
+    TextLabel.Size = UDim2.new(0, 200, 0, 30)
+    TextLabel.Position = UDim2.new(0, 10, 0, 10)
+    TextLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TextLabel.Parent = ScreenGui
+    
+    task.wait(5)
+    TextLabel:Destroy()
+    task.wait(1)
+    ScreenGui:Destroy()
+end
